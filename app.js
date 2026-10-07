@@ -1,0 +1,21 @@
+const KEY='pixai_prompt_manager_v1';
+const seed=[
+['人物','女性, 1人, 成人, 美しい女性'],['人物','男性, 1人, 成人, handsome man'],['顔','整った顔立ち, 美しい顔, symmetrical face'],['顔','大きな瞳, detailed eyes, expressive eyes'],['髪','long hair, silky hair'],['髪','short hair, neat hairstyle'],['体型','slender body, slim figure'],['体型','curvy body, feminine figure'],['服装','white shirt, black skirt'],['服装','casual clothes, stylish outfit'],['ポーズ','standing, looking at viewer'],['ポーズ','sitting, relaxed pose'],['背景','city street, evening'],['背景','beautiful room, soft background'],['光・ライティング','soft lighting, cinematic lighting'],['光・ライティング','rim light, dramatic lighting'],['雰囲気','calm atmosphere, gentle mood'],['雰囲気','mysterious atmosphere, dramatic mood'],['構図・カメラ','full body, wide shot'],['構図・カメラ','portrait, close-up, detailed face']
+];
+let data=JSON.parse(localStorage.getItem(KEY)||'null')||seed.map((x,i)=>({id:Date.now()+i,category:x[0],text:x[1],favorite:false}));
+function save(){localStorage.setItem(KEY,JSON.stringify(data))}
+function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function categories(){return [...new Set(data.map(x=>x.category))].sort((a,b)=>a.localeCompare(b,'ja'))}
+function renderCats(){const s=document.querySelector('#categoryFilter'),v=s.value;s.innerHTML='<option value="">すべてのカテゴリ</option>'+categories().map(c=>`<option>${esc(c)}</option>`).join('');s.value=v}
+function render(){renderCats();const q=document.querySelector('#search').value.toLowerCase(),c=document.querySelector('#categoryFilter').value;const list=data.filter(x=>(!q||(x.text+' '+x.category).toLowerCase().includes(q))&&(!c||x.category===c));document.querySelector('#list').innerHTML=list.length?list.map(x=>`<article class="card"><div class="meta">${esc(x.category)}</div><div class="prompt">${esc(x.text)}</div><div class="actions"><button onclick="del(${x.id})">削除</button><button onclick="edit(${x.id})">編集</button><button onclick="fav(${x.id})">${x.favorite?'★お気に入り':'☆お気に入り'}</button><button onclick="copyText(${x.id})">コピー</button></div></article>`).join(''):'<div class="empty">該当するプロンプトがありません</div>'}
+function add(){openEditor()}
+function edit(id){const x=data.find(a=>a.id===id);openEditor(x)}
+function openEditor(x){const d=document.createElement('dialog');d.innerHTML=`<form method="dialog"><h2>${x?'編集':'プロンプト追加'}</h2><input id="ec" placeholder="カテゴリ" value="${x?esc(x.category):''}"><textarea id="et" placeholder="プロンプト">${x?esc(x.text):''}</textarea><div class="dialog-actions"><button value="cancel">キャンセル</button><button id="saveEdit" value="default">保存</button></div></form>`;document.body.appendChild(d);d.querySelector('#saveEdit').onclick=e=>{e.preventDefault();const cat=d.querySelector('#ec').value.trim()||'未分類',text=d.querySelector('#et').value.trim();if(!text)return;if(x){x.category=cat;x.text=text}else data.push({id:Date.now(),category:cat,text,favorite:false});save();d.close();d.remove();render()};d.addEventListener('close',()=>d.remove());d.showModal()}
+function del(id){if(confirm('このプロンプトを削除しますか？')){data=data.filter(x=>x.id!==id);save();render()}}
+function fav(id){const x=data.find(a=>a.id===id);x.favorite=!x.favorite;save();render()}
+async function copyText(id){const x=data.find(a=>a.id===id);await navigator.clipboard.writeText(x.text);alert('コピーしました')}
+document.querySelector('#search').oninput=render;document.querySelector('#categoryFilter').onchange=render;document.querySelector('#addBtn').onclick=add;
+document.querySelector('#backupBtn').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download='pixai-prompts.json';a.click()}
+document.querySelector('#restoreInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{data=JSON.parse(r.result);save();render();alert('復元しました')}catch{alert('JSONが正しくありません')}};r.readAsText(f)}
+render();
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
